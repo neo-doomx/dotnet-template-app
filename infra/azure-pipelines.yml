@@ -1,0 +1,58 @@
+# Azure DevOps build pipeline: restore, build, test, and build the API Docker image.
+# Setup: Pipelines > New pipeline > choose the repository > Existing Azure Pipelines YAML file > /infra/azure-pipelines.yml
+
+trigger:
+  branches:
+    include:
+      - main
+
+pr:
+  branches:
+    include:
+      - main
+
+pool:
+  vmImage: ubuntu-latest
+
+variables:
+  buildConfiguration: Release
+  imageName: template-api
+
+steps:
+  - task: UseDotNet@2
+    displayName: Install .NET SDK from global.json
+    inputs:
+      useGlobalJson: true
+
+  - script: dotnet restore Template.slnx
+    displayName: Restore
+
+  - script: dotnet build Template.slnx --configuration $(buildConfiguration) --no-restore
+    displayName: Build
+
+  - script: >
+      dotnet test
+      --configuration $(buildConfiguration)
+      --no-build
+      --report-xunit-trx
+      --results-directory $(Agent.TempDirectory)/TestResults
+    displayName: Test
+
+  - task: PublishTestResults@2
+    displayName: Publish test results
+    condition: succeededOrFailed()
+    inputs:
+      testResultsFormat: VSTest
+      testResultsFiles: '**/*.trx'
+      searchFolder: $(Agent.TempDirectory)/TestResults
+
+  - task: Docker@2
+    displayName: Build Docker image
+    inputs:
+      command: build
+      repository: $(imageName)
+      Dockerfile: src/Template.Api/Dockerfile
+      buildContext: $(Build.SourcesDirectory)
+      tags: |
+        $(Build.BuildId)
+        latest

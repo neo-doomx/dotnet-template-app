@@ -299,7 +299,20 @@ The script stops with an error if `.env` is missing. It waits until SQL Server a
 
 Use `-Volumes` after changing `SQL_SA_PASSWORD` in `.env`. SQL Server keeps the password from its first start inside the volume.
 
-## 13. Security notes and known limits
+## 13. Build pipeline (Azure DevOps)
+
+`infra/azure-pipelines.yml` runs on every push and pull request to `main`, on an `ubuntu-latest` agent:
+
+1. Installs the .NET SDK version from `global.json`.
+2. Restores and builds `Template.slnx` in Release.
+3. Runs the unit tests and publishes the results to the pipeline's **Tests** tab.
+4. Builds the API Docker image, tagged `template-api:<BuildId>` and `template-api:latest`. The image is not pushed.
+
+Set it up once: **Pipelines > New pipeline**, pick the repository, choose **Existing Azure Pipelines YAML file**, then select `/infra/azure-pipelines.yml`.
+
+To push the image, create a Docker registry service connection and change the Docker step to `command: buildAndPush` with `containerRegistry: <service connection name>`.
+
+## 14. Security notes and known limits
 
 - Basic credentials are sent on every request. The handler rejects them over plain HTTP. Behind a TLS-terminating proxy, add `UseForwardedHeaders` so `Request.IsHttps` stays correct.
 - Every authenticated request runs a PBKDF2 verification (100,000 iterations) and one database lookup. This is intentional for security and costs a few milliseconds per call.
